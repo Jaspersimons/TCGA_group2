@@ -1,0 +1,113 @@
+---
+title: "ML"
+format: html
+editor: visual
+---
+
+## Quarto
+
+Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
+
+## Running Code
+
+When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
+
+```{r}
+tcga_rna_count_data_crc <- read_csv("~/Documents/Master Bioinformatics & Systems biology/Scientific Machine Learning/TCGA_dataset 2/tcga_rna_count_data_crc.csv")
+
+prediction_file_crc <- read_csv("~/Documents/Master Bioinformatics & Systems biology/Scientific Machine Learning/TCGA_dataset 2/prediction_file_crc.csv")
+```
+
+```{r}
+str(prediction_file_crc)
+
+summary(prediction_file_crc)
+```
+
+```{r}
+prediction_file_crc$TP53 <- factor(prediction_file_crc$TP53, levels = c("WT", "SNV"))
+prediction_file_crc$KRAS <- factor(prediction_file_crc$KRAS, levels = c("WT", "SNV"))
+prediction_file_crc$BRAF <- factor(prediction_file_crc$BRAF, levels = c("WT", "SNV"))
+prediction_file_crc$APC  <- factor(prediction_file_crc$APC,  levels = c("WT", "SNV"))
+prediction_file_crc$TTN  <- factor(prediction_file_crc$TTN,  levels = c("WT", "SNV"))
+ 
+table(prediction_file_crc$TP53)
+table(prediction_file_crc$KRAS)
+table(prediction_file_crc$BRAF)
+table(prediction_file_crc$APC)
+table(prediction_file_crc$TTN)
+```
+
+```{r}
+colSums(is.na(prediction_file_crc))
+
+# Simple WT vs SNV association tests (Wilcoxon) + BH-FDR
+# assumes prediction_file_crc is already loaded
+
+df <- prediction_file_crc
+
+genes  <- c("TP53","KRAS","BRAF","APC","TTN")
+traits <- c("TMB","TBL","fraction_genome_altered","aneuploidy_score")
+
+# make mutation columns factors (WT reference)
+for (g in genes) df[[g]] <- factor(df[[g]], levels = c("WT","SNV"))
+
+# run all tests
+out <- data.frame()
+for (g in genes) {
+  for (t in traits) {
+    p <- wilcox.test(df[[t]] ~ df[[g]], exact = FALSE)$p.value
+    out <- rbind(out, data.frame(gene=g, trait=t, p_value=p))
+  }
+}
+
+# multiple testing correction (20 tests)
+out$p_adj_BH <- p.adjust(out$p_value, method = "BH")
+
+# show results sorted by adjusted p-value
+out <- out[order(out$p_adj_BH), ]
+print(out)
+```
+
+```{r}
+library(ggplot2)
+
+df <- prediction_file_crc
+
+# Ensure TP53 is factor
+df$TP53 <- factor(df$TP53, levels = c("WT","SNV"))
+
+# 1️⃣ TMB (log scale)
+ggplot(df, aes(x = TP53, y = TMB)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter(width = 0.2, alpha = 0.3) +
+  scale_y_log10() +
+  theme_bw() +
+  labs(title = "TP53 Mutation vs TMB",
+       y = "TMB (log scale)")
+
+# 2️⃣ TBL (log scale)
+ggplot(df, aes(x = TP53, y = TBL + 1)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter(width = 0.2, alpha = 0.3) +
+  scale_y_log10() +
+  theme_bw() +
+  labs(title = "TP53 Mutation vs TBL",
+       y = "TBL (log scale)")
+
+# 3️⃣ Fraction Genome Altered
+ggplot(df, aes(x = TP53, y = fraction_genome_altered)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter(width = 0.2, alpha = 0.3) +
+  theme_bw() +
+  labs(title = "TP53 Mutation vs Fraction Genome Altered",
+       y = "Fraction Genome Altered")
+
+# 4️⃣ Aneuploidy Score
+ggplot(df, aes(x = TP53, y = aneuploidy_score)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter(width = 0.2, alpha = 0.3) +
+  theme_bw() +
+  labs(title = "TP53 Mutation vs Aneuploidy Score",
+       y = "Aneuploidy Score")
+```
