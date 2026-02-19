@@ -1,0 +1,332 @@
+---
+title: "MSI vs instability tests"
+format: html
+editor: visual
+---
+
+Setup
+```{r}
+#| message: false
+#| warning: false
+
+# Install only if missing
+req <- c("readr", "dplyr", "tidyr", "stringr", "ggplot2", "rstatix", "e1071", "purrr")
+new <- req[!req %in% installed.packages()[, "Package"]]
+if (length(new) > 0) install.packages(new)
+
+library(readr)
+library(dplyr)
+library(tidyr)
+library(stringr)
+library(ggplot2)
+library(rstatix)
+library(e1071)
+library(purrr)
+```
+
+File paths and load data
+```{r}
+pred_path <- "prediction_file_crc.csv"
+rna_path  <- "tcga_rna_count_data_crc.csv"
+
+pred_raw <- read_csv(pred_path, show_col_types = FALSE)
+rna_raw  <- read_csv(rna_path,  show_col_types = FALSE)
+
+cat("Prediction table dimensions:", nrow(pred_raw), "rows x", ncol(pred_raw), "cols\n")
+cat("RNA matrix dimensions      :", nrow(rna_raw),  "rows x", ncol(rna_raw),  "cols\n")
+```
+
+Quick column preview
+```{r}
+cat("Prediction columns:\n")
+print(colnames(pred_raw))
+
+cat("\nFirst 10 RNA column names:\n")
+print(colnames(rna_raw)[1:min(10, ncol(rna_raw))])
+```
+
+ID checks + keep overlapping samples
+```{r}
+# Rename ID columns to avoid confusion
+pred <- pred_raw %>% rename(sample_id = `...1`)
+rna  <- rna_raw  %>% rename(gene_id   = `...1`)
+
+# Extract IDs
+pred_ids <- pred$sample_id
+rna_ids  <- colnames(rna)[-1]   # all columns except gene_id
+
+# Duplicate checks
+dup_pred <- pred_ids[duplicated(pred_ids)]
+dup_rna  <- rna_ids[duplicated(rna_ids)]
+
+cat("Duplicate sample IDs in prediction table:", length(unique(dup_pred)), "\n")
+cat("Duplicate sample IDs in RNA matrix     :", length(unique(dup_rna)), "\n")
+
+# Overlap
+overlap_ids <- intersect(pred_ids, rna_ids)
+
+cat("Unique prediction IDs:", length(unique(pred_ids)), "\n")
+cat("Unique RNA IDs       :", length(unique(rna_ids)), "\n")
+cat("Overlapping IDs      :", length(overlap_ids), "\n")
+
+# Keep only overlapping samples
+pred_ov <- pred %>% filter(sample_id %in% overlap_ids)
+
+# Subset RNA to overlapping sample columns (keep gene_id + overlap columns)
+rna_ov <- rna %>% select(gene_id, all_of(overlap_ids))
+
+pred_ov <- pred_ov %>% slice(match(overlap_ids, sample_id))
+stopifnot(identical(pred_ov$sample_id, colnames(rna_ov)[-1]))
+
+#MSI indeterminate
+pred_ov <- pred_ov %>%
+  mutate(
+    msi_status = trimws(as.character(msi_status)),
+    msi_status = ifelse(tolower(msi_status) %in% c("indeterminate", "indetermined"), NA, msi_status)
+  )
+
+cat("\nAfter filtering:\n")
+cat("Prediction rows:", nrow(pred_ov), "\n")
+cat("RNA columns    :", ncol(rna_ov), "(includes gene_id)\n")
+
+cat("\nAlignment check (first 10 IDs):\n")
+print(head(pred_ov$sample_id, 10))
+print(head(colnames(rna_ov)[-1], 10))
+
+cat("\nAligned? ", identical(pred_ov$sample_id, colnames(rna_ov)[-1]), "\n")
+
+```
+
+Missingness checks
+```{r}
+# Columns we must check (exactly as in your checklist)
+cols_check <- c(
+  "msi_status",
+  "TMB", "TBL", "fraction_genome_altered", "aneuploidy_score",
+  "TP53", "KRAS", "BRAF", "APC", "TTN"
+)
+
+# Sanity: are all columns present?
+missing_cols <- setdiff(cols_check, colnames(pred_ov))
+if (length(missing_cols) > 0) {
+  stop(paste("These columns are missing in pred_ov:", paste(missing_cols, collapse = ", ")))
+}
+
+# % missing per column
+missingness_tbl <- pred_ov %>%
+  summarise(across(all_of(cols_check), ~ mean(is.na(.) | . == "") * 100)) %>%
+  pivot_longer(everything(), names_to = "column", values_to = "pct_missing") %>%
+  arrange(desc(pct_missing))
+
+missingness_tbl
+
+n_total <- nrow(pred_ov)
+n_msi_missing <- sum(is.na(pred_ov$msi_status) | pred_ov$msi_status == "")
+n_msi_present <- n_total - n_msi_missing
+
+cat("Total samples:", n_total, "\n")
+cat("MSI missing  :", n_msi_missing, "\n")
+cat("MSI present  :", n_msi_present, "\n")
+```
+
+Class imbalance checks
+```{r}
+msi_balance <- pred_ov %>%
+  filter(!is.na(msi_status), msi_status != "") %>%
+  mutate(msi_status = factor(msi_status, levels = c("MSS", "MSI-L", "MSI-H"))) %>%
+  count(msi_status, name = "n") %>%
+  mutate(prop = n / sum(n))
+
+msi_balance
+```
+```{r}
+mut_genes <- c("TP53", "KRAS", "BRAF", "APC", "TTN")
+
+mut_balance <- purrr::map_dfr(mut_genes, function(g) {
+  pred_ov %>%
+    mutate(value = as.character(.data[[g]])) %>%
+    mutate(value = trimws(value)) %>%
+    filter(!is.na(value), value != "") %>%
+    count(value, name = "n") %>%
+    mutate(prop = n / sum(n), gene = g) %>%
+    select(gene, value, n, prop)
+})
+
+mut_balance
+```
+
+Distribution checks
+```{r}
+num_targets <- c("TMB", "TBL", "fraction_genome_altered", "aneuploidy_score")
+
+dist_tbl <- purrr::map_dfr(num_targets, function(v) {
+
+  x_all <- pred_ov[[v]]
+  n_total <- length(x_all)
+  n_missing <- sum(is.na(x_all) | x_all == "")
+  x <- suppressWarnings(as.numeric(x_all))
+  x <- x[!is.na(x)]
+
+  if (length(x) == 0) {
+    return(tibble(
+      variable = v,
+      n_total = n_total,
+      n_missing = n_missing,
+      n_used = 0,
+      min = NA_real_, q1 = NA_real_, median = NA_real_, q3 = NA_real_, max = NA_real_,
+      range = NA_real_,
+      skewness = NA_real_,
+      outliers_iqr = NA_integer_
+    ))
+  }
+
+  q1 <- as.numeric(quantile(x, 0.25, names = FALSE))
+  q3 <- as.numeric(quantile(x, 0.75, names = FALSE))
+  iqr <- q3 - q1
+  low <- q1 - 1.5 * iqr
+  high <- q3 + 1.5 * iqr
+  out_n <- sum(x < low | x > high)
+
+  tibble(
+    variable = v,
+    n_total = n_total,
+    n_missing = n_missing,
+    n_used = length(x),
+    min = min(x),
+    q1 = q1,
+    median = median(x),
+    q3 = q3,
+    max = max(x),
+    range = max(x) - min(x),
+    skewness = e1071::skewness(x, type = 2),
+    outliers_iqr = out_n
+  )
+})
+
+dist_tbl
+```
+```{r}
+
+for (v in c("TMB","TBL","fraction_genome_altered","aneuploidy_score")) {
+  print(
+    ggplot(pred_ov, aes(x = .data[[v]])) +
+      geom_histogram(bins = 30) +
+      theme_minimal(base_size = 12) +
+      labs(title = paste("Histogram:", v), x = v, y = "Count")
+  )
+}
+```
+
+Dataset for MSI-based tests
+```{r}
+msi_df <- pred_ov %>%
+  filter(!is.na(msi_status), msi_status != "") %>%
+  mutate(msi_status = factor(msi_status, levels = c("MSS", "MSI-L", "MSI-H")))
+
+cat("Rows in msi_df:", nrow(msi_df), "\n")
+msi_df %>% count(msi_status)
+```
+
+MSI vs TMB
+```{r}
+# 1) Create transformed variable (handles skew; safe if TMB can be 0)
+msi_df <- msi_df %>%
+  mutate(logTMB = log1p(TMB))
+
+# 2) Quick visual check
+ggplot(msi_df, aes(x = msi_status, y = logTMB)) +
+  geom_boxplot() +
+  theme_minimal(base_size = 12) +
+  labs(title = "log1p(TMB) by MSI class", x = "MSI class", y = "log1p(TMB)")
+
+# 3) Fit one-way ANOVA
+fit_tmb <- aov(logTMB ~ msi_status, data = msi_df)
+summary(fit_tmb)
+
+# 4) Post-hoc pairwise comparisons (Tukey)
+TukeyHSD(fit_tmb)
+
+# 5) Diagnostic plots (assumption checks)
+par(mfrow = c(1, 2))
+plot(fit_tmb, which = 1)  # residuals vs fitted (variance / patterns)
+plot(fit_tmb, which = 2)  # Q-Q plot (normality of residuals)
+par(mfrow = c(1, 1))
+```
+
+MSI vs TBL
+```{r}
+# 1) Transform (TBL is right-skewed, log helps)
+msi_df <- msi_df %>%
+  mutate(logTBL = log1p(TBL))
+
+# 2) Boxplot on transformed scale
+ggplot(msi_df, aes(x = msi_status, y = logTBL)) +
+  geom_boxplot() +
+  theme_minimal(base_size = 12) +
+  labs(title = "log1p(TBL) by MSI class", x = "MSI class", y = "log1p(TBL)")
+
+# 3) One-way ANOVA
+fit_tbl <- aov(logTBL ~ msi_status, data = msi_df)
+summary(fit_tbl)
+
+# 4) Tukey post-hoc
+TukeyHSD(fit_tbl)
+
+# 5) Diagnostic plots
+par(mfrow = c(1, 2))
+plot(fit_tbl, which = 1)
+plot(fit_tbl, which = 2)
+par(mfrow = c(1, 1))
+```
+
+```{r}
+cor(pred_ov$TBL, pred_ov$fraction_genome_altered, method = "spearman")
+cor(pred_ov$TBL, pred_ov$aneuploidy_score, method = "spearman")
+cor(pred_ov$TMB, pred_ov$TBL, method = "spearman")
+```
+
+MSI vs fraction_genome_altered
+```{r}
+# 1) Boxplot (raw scale)
+ggplot(msi_df, aes(x = msi_status, y = fraction_genome_altered)) +
+  geom_boxplot() +
+  theme_minimal(base_size = 12) +
+  labs(title = "fraction_genome_altered by MSI class",
+       x = "MSI class", y = "fraction_genome_altered")
+
+# 2) One-way ANOVA
+fit_fga <- aov(fraction_genome_altered ~ msi_status, data = msi_df)
+summary(fit_fga)
+
+# 3) Tukey post-hoc
+TukeyHSD(fit_fga)
+
+# 4) Diagnostics
+par(mfrow = c(1, 2))
+plot(fit_fga, which = 1)
+plot(fit_fga, which = 2)
+par(mfrow = c(1, 1))
+```
+
+MSI vs aneuploidy_score
+```{r}
+# 1) Boxplot (raw scale)
+ggplot(msi_df, aes(x = msi_status, y = aneuploidy_score)) +
+  geom_boxplot() +
+  theme_minimal(base_size = 12) +
+  labs(title = "aneuploidy_score by MSI class",
+       x = "MSI class", y = "aneuploidy_score")
+
+# 2) One-way ANOVA
+fit_aneu <- aov(aneuploidy_score ~ msi_status, data = msi_df)
+summary(fit_aneu)
+
+# 3) Tukey post-hoc
+TukeyHSD(fit_aneu)
+
+# 4) Diagnostics
+par(mfrow = c(1, 2))
+plot(fit_aneu, which = 1)
+plot(fit_aneu, which = 2)
+par(mfrow = c(1, 1))
+```
