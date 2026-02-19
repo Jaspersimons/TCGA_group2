@@ -1,1 +1,118 @@
+```{r}
+library(tidyverse)
+library(dplyr)
+library(reshape2)
+library(e1071)
+library(GGally)
+```
 
+## Loading datasets
+
+```{r}
+prediction <- read.csv("prediction_file_crc.csv")
+rna <- read.csv("tcga_rna_count_data_crc.csv", row.names = 1)
+```
+
+# Preprocessing
+
+1.  Clean data
+2.  Select instability variables
+3.  Check skewness
+
+```{r}
+# 1
+# Replace dots with dashes in RNA column names
+colnames(rna) <- gsub("\\.", "-", colnames(rna))
+
+# Match IDs
+prediction_ids <- prediction$X
+rna_ids <- colnames(rna)
+
+# Find overlap (should be all)
+overlap_ids <- intersect(prediction_ids, rna_ids)
+length(overlap_ids) # should be 462
+
+# Keep overlapping samples
+prediction <- prediction %>%
+  filter(X %in% overlap_ids) %>%
+  distinct(X, .keep_all = TRUE)
+
+# 2
+instability <- prediction %>%
+  select(TMB, TBL, fraction_genome_altered, aneuploidy_score) %>%
+  na.omit()
+
+# 3
+apply(instability, 2, skewness)
+
+```
+```{r}
+instability <- instability %>%
+  mutate(
+    TMB = log10(TMB + 1),
+    TBL = log10(TBL + 1)
+  )
+
+```
+# Numeric-numeric relationships: instability map
+
+## Scatterplots
+
+```{r}
+pairs(instability)
+
+ggpairs(instability,
+        lower = list(continuous = wrap("smooth", alpha = 0.5)),
+        upper = list(continuous = wrap("cor", size = 4)),
+        diag = list(continuous = "densityDiag")) +
+  theme_bw()
+
+```
+## Correlation heatmap (Pearson and Spearman)
+
+```{r}
+pearson_corr <- cor(instability, method = "pearson")
+spearman_corr <- cor(instability, method = "spearman")
+
+# long format
+pearson_melt <- melt(pearson_corr)
+spearman_melt <- melt(spearman_corr)
+
+# Pearson
+ggplot(pearson_melt, aes(Var1, Var2, fill = value)) +
+  geom_tile(color = "white") +
+  geom_text(aes(label = round(value, 2)), size = 4) +
+  scale_fill_gradient2(
+    low = "orange",
+    high = "blue",
+    mid = "white",
+    midpoint = 0,
+    limit = c(-1, 1),
+    name = "Pearson\nCorrelation"
+  ) +
+  theme_minimal() +
+  labs(title = "Pearson Correlation - Instability Map",
+       x = "",
+       y = "") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# Spearman
+ggplot(spearman_melt, aes(Var1, Var2, fill = value)) +
+  geom_tile(color = "white") +
+  geom_text(aes(label = round(value, 2)), size = 4) +
+  scale_fill_gradient2(
+    low = "orange",
+    high = "blue",
+    mid = "white",
+    midpoint = 0,
+    limit = c(-1, 1),
+    name = "Spearman\nCorrelation"
+  ) +
+  theme_minimal() +
+  labs(title = "Spearman Correlation - Instability Map",
+       x = "",
+       y = "") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+```
