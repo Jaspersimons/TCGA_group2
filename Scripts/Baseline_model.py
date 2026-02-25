@@ -4,6 +4,10 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import classification_report, accuracy_score, confusion_matrix
 from sklearn.preprocessing import StandardScaler
+import matplotlib.pyplot as plt
+import seaborn as sns
+import numpy as np
+
 
 ############ Load the preprocessed data ##################
 rna_data = pd.read_csv('filtered_rna_data.csv')
@@ -94,3 +98,110 @@ print(confusion_matrix(y_test, y_test_pred))
 print("\nConfusion Matrix (Random Forest):")
 print(confusion_matrix(y_test, y_pred_rf))
 ######################################################################
+
+
+
+################## Plots: confusion matrix #####################
+class_names = ['MSI-H', 'MSI-L', 'MSS']
+
+# Compute confusion matrices
+cm_log = confusion_matrix(y_test, y_test_pred)
+cm_rf = confusion_matrix(y_test, y_pred_rf)
+
+fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+
+# Logistic Regression
+sns.heatmap(cm_log, annot=True, fmt='d', cmap='Blues',
+            xticklabels=class_names,
+            yticklabels=class_names,
+            ax=axes[0])
+axes[0].set_title("Logistic Regression Confusion Matrix")
+axes[0].set_xlabel("Predicted")
+axes[0].set_ylabel("Actual")
+
+# Random Forest
+sns.heatmap(cm_rf, annot=True, fmt='d', cmap='Reds',
+            xticklabels=class_names,
+            yticklabels=class_names,
+            ax=axes[1])
+axes[1].set_title("Random Forest Confusion Matrix")
+axes[1].set_xlabel("Predicted")
+axes[1].set_ylabel("Actual")
+
+plt.tight_layout()
+plt.savefig("confusion_matrices_raw.png", dpi=300, bbox_inches='tight')
+plt.show()
+#########################################################
+
+
+
+#################### plots: per class precision, recall, f1 bar #######################
+
+# Get classification reports as dicts
+report_log = classification_report(y_test, y_test_pred, 
+                                   target_names=class_names, 
+                                   output_dict=True)
+
+report_rf = classification_report(y_test, y_pred_rf, 
+                                  target_names=class_names, 
+                                  output_dict=True)
+
+# Convert to DataFrame
+df_log = pd.DataFrame(report_log).T.iloc[:3]
+df_rf = pd.DataFrame(report_rf).T.iloc[:3]
+
+# Add model label
+df_log['Model'] = 'Logistic Regression'
+df_rf['Model'] = 'Random Forest'
+
+df_all = pd.concat([df_log, df_rf])
+df_all.reset_index(inplace=True)
+df_all.rename(columns={'index': 'Class'}, inplace=True)
+
+
+
+metrics = ['precision', 'recall', 'f1-score']
+
+fig, axes = plt.subplots(1, 3, figsize=(18, 5))
+
+for i, metric in enumerate(metrics):
+    sns.barplot(data=df_all, x='Class', y=metric, hue='Model', ax=axes[i])
+    axes[i].set_title(metric.capitalize())
+    axes[i].set_ylim(0, 1)
+
+plt.tight_layout()
+plt.savefig("model_performance_metrics.png", dpi=300, bbox_inches='tight')
+plt.show()
+
+#################################################################################
+
+
+
+######################## plots: normalized confusion matrix ################
+
+cm_log_norm = cm_log.astype('float') / cm_log.sum(axis=1)[:, np.newaxis]
+cm_rf_norm = cm_rf.astype('float') / cm_rf.sum(axis=1)[:, np.newaxis]
+
+fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+
+sns.heatmap(cm_log_norm, annot=True, fmt='.2f', cmap='Blues',
+            xticklabels=class_names,
+            yticklabels=class_names,
+            ax=axes[0])
+axes[0].set_title("Logistic Regression (Normalized)")
+
+sns.heatmap(cm_rf_norm, annot=True, fmt='.2f', cmap='Reds',
+            xticklabels=class_names,
+            yticklabels=class_names,
+            ax=axes[1])
+axes[1].set_title("Random Forest (Normalized)")
+
+plt.tight_layout()
+plt.savefig("confusion_matrices_normalized.png", dpi=300, bbox_inches='tight')
+plt.show()
+###########################################################################
+
+
+
+
+
