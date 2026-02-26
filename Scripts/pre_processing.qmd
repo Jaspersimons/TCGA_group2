@@ -1,10 +1,12 @@
 ---
+setwd("C:/Users/jaspe/OneDrive/Bureaublad/Bioinformatics/SFM/TCGA_group2/TCGA_dataset(1)/TCGA_dataset/")---
 title: "MSI vs instability tests"
 format: html
 editor: visual
 ---
 
 Setup
+
 ```{r}
 #| message: false
 #| warning: false
@@ -25,6 +27,7 @@ library(purrr)
 ```
 
 File paths and load data
+
 ```{r}
 pred_path <- "prediction_file_crc.csv"
 rna_path  <- "tcga_rna_count_data_crc.csv"
@@ -37,6 +40,7 @@ cat("RNA matrix dimensions      :", nrow(rna_raw),  "rows x", ncol(rna_raw),  "c
 ```
 
 Quick column preview
+
 ```{r}
 cat("Prediction columns:\n")
 print(colnames(pred_raw))
@@ -46,6 +50,7 @@ print(colnames(rna_raw)[1:min(10, ncol(rna_raw))])
 ```
 
 ID checks + keep overlapping samples
+
 ```{r}
 # Rename ID columns to avoid confusion
 pred <- pred_raw %>% rename(sample_id = `...1`)
@@ -98,6 +103,7 @@ cat("\nAligned? ", identical(pred_ov$sample_id, colnames(rna_ov)[-1]), "\n")
 ```
 
 Missingness checks
+
 ```{r}
 # Columns we must check (exactly as in your checklist)
 cols_check <- c(
@@ -130,6 +136,7 @@ cat("MSI present  :", n_msi_present, "\n")
 ```
 
 Class imbalance checks
+
 ```{r}
 msi_balance <- pred_ov %>%
   filter(!is.na(msi_status), msi_status != "") %>%
@@ -139,6 +146,7 @@ msi_balance <- pred_ov %>%
 
 msi_balance
 ```
+
 ```{r}
 mut_genes <- c("TP53", "KRAS", "BRAF", "APC", "TTN")
 
@@ -156,6 +164,7 @@ mut_balance
 ```
 
 Distribution checks
+
 ```{r}
 num_targets <- c("TMB", "TBL", "fraction_genome_altered", "aneuploidy_score")
 
@@ -205,6 +214,7 @@ dist_tbl <- purrr::map_dfr(num_targets, function(v) {
 
 dist_tbl
 ```
+
 ```{r}
 
 for (v in c("TMB","TBL","fraction_genome_altered","aneuploidy_score")) {
@@ -218,6 +228,7 @@ for (v in c("TMB","TBL","fraction_genome_altered","aneuploidy_score")) {
 ```
 
 Dataset for MSI-based tests
+
 ```{r}
 msi_df <- pred_ov %>%
   filter(!is.na(msi_status), msi_status != "") %>%
@@ -227,7 +238,10 @@ cat("Rows in msi_df:", nrow(msi_df), "\n")
 msi_df %>% count(msi_status)
 ```
 
+**A. MSI vs instability metrics**
+
 MSI vs TMB
+
 ```{r}
 # 1) Create transformed variable (handles skew; safe if TMB can be 0)
 msi_df <- msi_df %>%
@@ -254,6 +268,7 @@ par(mfrow = c(1, 1))
 ```
 
 MSI vs TBL
+
 ```{r}
 # 1) Transform (TBL is right-skewed, log helps)
 msi_df <- msi_df %>%
@@ -286,6 +301,7 @@ cor(pred_ov$TMB, pred_ov$TBL, method = "spearman")
 ```
 
 MSI vs fraction_genome_altered
+
 ```{r}
 # 1) Boxplot (raw scale)
 ggplot(msi_df, aes(x = msi_status, y = fraction_genome_altered)) +
@@ -309,6 +325,7 @@ par(mfrow = c(1, 1))
 ```
 
 MSI vs aneuploidy_score
+
 ```{r}
 # 1) Boxplot (raw scale)
 ggplot(msi_df, aes(x = msi_status, y = aneuploidy_score)) +
@@ -329,4 +346,130 @@ par(mfrow = c(1, 2))
 plot(fit_aneu, which = 1)
 plot(fit_aneu, which = 2)
 par(mfrow = c(1, 1))
+
+```
+
+**E. Optional: MSI vs each mutation gene directly – (Jasper)**
+
+Compare:
+
+(Technically overlaps with enrichment section, but you can present gene-by-gene.)
+
+-   MSI class vs TP53
+
+```{r}
+# 1) Contingency Table
+tp53_table <- table(msi_df$msi_status, msi_df$TP53)
+print("TP53 vs MSI Table:")
+print(tp53_table)
+
+# 2) Fisher's Exact Test
+tp53_test <- fisher.test(tp53_table)
+print(tp53_test)
+
+# 3) Visualization
+ggplot(msi_df, aes(x = msi_status, fill = TP53)) +
+  geom_bar(position = "fill") +
+  scale_y_continuous(labels = scales::percent) +
+  theme_minimal(base_size = 12) +
+  labs(title = "TP53 Mutation Distribution by MSI Status", 
+       x = "MSI Group", y = "Percentage", fill = "TP53 Status") +
+  scale_fill_manual(values = c("WT" = "gray70", "SNV" = "firebrick"))
+```
+
+-   MSI class vs KRAS
+
+```{r}
+# 1) Contingency Table
+kras_table <- table(msi_df$msi_status, msi_df$KRAS)
+print("KRAS vs MSI Table:")
+print(kras_table)
+
+# 2) Fisher's Exact Test
+kras_test <- fisher.test(kras_table)
+print(kras_test)
+
+# 3) Visualization
+ggplot(msi_df, aes(x = msi_status, fill = KRAS)) +
+  geom_bar(position = "fill") +
+  scale_y_continuous(labels = scales::percent) +
+  theme_minimal(base_size = 12) +
+  labs(title = "KRAS Mutation Distribution by MSI Status", 
+       x = "MSI Group", y = "Percentage", fill = "KRAS Status") +
+  scale_fill_manual(values = c("WT" = "gray70", "SNV" = "darkorange"))
+```
+
+-   MSI class vs BRAF
+
+```{r}
+# 1) Contingency Table
+braf_table <- table(msi_df$msi_status, msi_df$BRAF)
+print("BRAF vs MSI Table:")
+print(braf_table)
+
+# 2) Fisher's Exact Test
+# Using the exact test (no simulation) to get the precise scientific p-value
+braf_test <- fisher.test(braf_table)
+print(braf_test)
+
+# 3) Visualization
+ggplot(msi_df, aes(x = msi_status, fill = BRAF)) +
+  geom_bar(position = "fill") +
+  scale_y_continuous(labels = scales::percent) +
+  theme_minimal(base_size = 12) +
+  labs(
+    title = "BRAF Mutation Distribution by MSI Status", 
+    x = "MSI Group", 
+    y = "Percentage", 
+    fill = "BRAF Status"
+  ) +
+  # WT is Gray, SNV is Purple
+  scale_fill_manual(values = c("WT" = "gray70", "SNV" = "purple"))
+
+```
+
+-   MSI class vs APC
+
+    ```{r}
+    # 1) Contingency Table
+    apc_table <- table(msi_df$msi_status, msi_df$APC)
+    print("APC vs MSI Table:")
+    print(apc_table)
+
+    # 2) Fisher's Exact Test
+    apc_test <- fisher.test(apc_table)
+    print(apc_test)
+
+    # 3) Visualization
+    ggplot(msi_df, aes(x = msi_status, fill = APC)) +
+      geom_bar(position = "fill") +
+      scale_y_continuous(labels = scales::percent) +
+      theme_minimal(base_size = 12) +
+      labs(title = "APC Mutation Distribution by MSI Status", 
+           x = "MSI Group", y = "Percentage", fill = "APC Status") +
+      scale_fill_manual(values = c("WT" = "gray70", "SNV" = "steelblue"))
+    ```
+
+<!-- -->
+
+-   MSI class vs TTN
+
+```{r}
+# 1) Contingency Table
+ttn_table <- table(msi_df$msi_status, msi_df$TTN)
+print("TTN vs MSI Table:")
+print(ttn_table)
+
+# 2) Fisher's Exact Test
+ttn_test <- fisher.test(ttn_table)
+print(ttn_test)
+
+# 3) Visualization
+ggplot(msi_df, aes(x = msi_status, fill = TTN)) +
+  geom_bar(position = "fill") +
+  scale_y_continuous(labels = scales::percent) +
+  theme_minimal(base_size = 12) +
+  labs(title = "TTN Mutation Distribution by MSI Status", 
+       x = "MSI Group", y = "Percentage", fill = "TTN Status") +
+  scale_fill_manual(values = c("WT" = "gray70", "SNV" = "forestgreen"))
 ```
