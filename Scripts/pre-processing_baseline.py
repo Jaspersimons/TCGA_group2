@@ -32,8 +32,6 @@ prediction_data_filtered = prediction_data[prediction_data['Unnamed: 0'].isin(va
 # Remove zero-heavy genes (genes with >50% zero values across all samples)
 zero_threshold = 0.5  # Threshold for zero-heavy genes
 
-
-
 gene_mask = rna_data_filtered.eq(0).mean(axis=1) < zero_threshold
 valid_genes = rna_data_filtered[gene_mask]
 
