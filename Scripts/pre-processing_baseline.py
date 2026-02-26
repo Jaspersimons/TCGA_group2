@@ -32,7 +32,12 @@ prediction_data_filtered = prediction_data[prediction_data['Unnamed: 0'].isin(va
 # Remove zero-heavy genes (genes with >50% zero values across all samples)
 zero_threshold = 0.5  # Threshold for zero-heavy genes
 
-valid_genes = rna_data_filtered.loc[:, rna_data_filtered.eq(0).mean() < zero_threshold]
+
+
+gene_mask = rna_data_filtered.eq(0).mean(axis=1) < zero_threshold
+valid_genes = rna_data_filtered[gene_mask]
+
+print(len(valid_genes))
 #################################################
 
 
@@ -44,11 +49,16 @@ rna_data_log_transformed = np.log1p(valid_genes)  # log1p(x) is log(x + 1)
 
 ################# Variance filtering ###################
 # Apply variance filtering: remove genes with low variance
-gene_variances = rna_data_log_transformed.var(axis=0)  # Variance per gene
+#variance_threshold = 0.5
 
-variance_threshold = 0.1
+#gene_variances = rna_data_log_transformed.var(axis=1) > variance_threshold # Variance per gene
 
-filtered_rna_data = rna_data_log_transformed.loc[:, gene_variances > variance_threshold]
+##filtered_rna_data = rna_data_log_transformed[gene_variances]
+
+# Keep the top 25% most variable genes
+top_percentile = np.percentile(rna_data_log_transformed.var(axis=1), 75)
+filtered_rna_data = rna_data_log_transformed[rna_data_log_transformed.var(axis=1) > top_percentile]
+
 #########################################################
 
 
@@ -59,10 +69,8 @@ filtered_rna_data['Gene_Name'] = gene_names[gene_names.index.isin(filtered_rna_d
 filtered_rna_data = filtered_rna_data[['Gene_Name'] + [col for col in filtered_rna_data.columns if col != 'Gene_Name']]  # Reorder columns
 #####################################################
 
-
 ############### Save files ########################
 filtered_rna_data.to_csv('filtered_rna_data.csv', index=False)
-
 
 prediction_data_filtered.to_csv('filtered_prediction_data.csv', index=False)
 #####################################################
