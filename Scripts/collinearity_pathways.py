@@ -4,10 +4,7 @@ import matplotlib.pyplot as plt
 import gseapy as gp
 from scipy.stats import mannwhitneyu
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import train_test_split
-import os
-
-os.chdir("/Users/mohammedmoustati/Documents/Master Bioinformatics & Systems biology/Scientific Machine Learning/TCGA_dataset 2")
+from sklearn.model_selection import train_test_split 
 
 filtered_rna_data = pd.read_csv("filtered_rna_data.csv")
 filtered_prediction_data = pd.read_csv("filtered_prediction_data.csv").set_index("Unnamed: 0")
@@ -29,7 +26,7 @@ pathway_mat = pathway_scores.pivot(index="Name", columns="Term", values="NES")
 common_ids = pathway_mat.index.intersection(filtered_prediction_data.index)
 pathway_mat = pathway_mat.loc[common_ids]
 
-# alles numeriek maken
+#Make numeric
 pathway_mat = pathway_mat.apply(pd.to_numeric, errors="coerce")
 
 y_all = filtered_prediction_data.loc[common_ids, "msi_status"]

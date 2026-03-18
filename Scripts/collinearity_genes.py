@@ -2,28 +2,17 @@ import pandas as pd
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
-import os
-
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 
-# ===============================
-# Load data
-# ===============================
-
-os.chdir("/Users/mohammedmoustati/Documents/Master Bioinformatics & Systems biology/Scientific Machine Learning/TCGA_dataset 2")
-
+################ Load Data #########
 filtered_rna_data = pd.read_csv("filtered_rna_data.csv")
 filtered_prediction_data = pd.read_csv("filtered_prediction_data.csv").set_index("Unnamed: 0")
 
 # genes x samples → samples x genes
 rna_matrix = filtered_rna_data.set_index("Gene_Name").T
 
-
-# ===============================
-# ssGSEA pathway scores
-# ===============================
-
+################ SSGSEA Pathway scores #########
 import gseapy as gp
 
 gsva_results = gp.ssgsea(
@@ -39,20 +28,14 @@ pathway_scores = gsva_results.res2d
 pathway_mat = pathway_scores.pivot(index="Name", columns="Term", values="NES")
 
 
-# ===============================
-# Prepare labels
-# ===============================
-
+################ Prepare Labels #########
 y_all = filtered_prediction_data.loc[pathway_mat.index, "msi_status"]
 
 # binary classification: MSI-H vs others
 y_binary = y_all.apply(lambda x: 1 if x == "MSI-H" else 0)
 
 
-# ===============================
-# Train Random Forest
-# ===============================
-
+################ Random Forest #########
 X_train, X_test, y_train, y_test = train_test_split(
     pathway_mat, y_binary,
     test_size=0.2,
@@ -64,9 +47,7 @@ rf = RandomForestClassifier(n_estimators=500, random_state=42)
 rf.fit(X_train, y_train)
 
 
-# ===============================
-# Feature importance
-# ===============================
+################ Pathway Importance #########
 
 importance = pd.DataFrame({
     "Pathway": pathway_mat.columns,
@@ -78,11 +59,7 @@ importance = importance.sort_values("Importance", ascending=False)
 print("\nTop MSI-H driving pathways:")
 print(importance.head(15))
 
-
-# ===============================
-# Plot
-# ===============================
-
+################ Plot #########
 plt.figure(figsize=(8,6))
 sns.barplot(data=importance.head(15), y="Pathway", x="Importance")
 plt.title("Top MSI-H Driving Pathways")
