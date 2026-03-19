@@ -1,8 +1,3 @@
-# ==========================================
-# Linear SVM Feature Importance (Python)
-# Multiclass + Binary + Pathway Enrichment
-# ==========================================
-
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
@@ -15,9 +10,7 @@ import gseapy as gp
 
 np.random.seed(42)
 
-# ---------------------------
-# 1. Load data
-# ---------------------------
+# Load data
 rna_data = pd.read_csv("filtered_rna_data.csv", index_col=0)
 prediction_data = pd.read_csv("filtered_prediction_data.csv", index_col=0)
 
@@ -32,9 +25,7 @@ mask = y_all != "Indeterminate"
 X_all = X_all[mask]
 y_all = y_all[mask]
 
-# ---------------------------
-# 2. MULTICLASS SVM
-# ---------------------------
+# Multiclass SVM
 print("\n=== MULTICLASS SVM ===")
 
 classes = ["MSI-H", "MSI-L", "MSS"]
@@ -68,12 +59,9 @@ plt.ylabel("Predicted")
 plt.savefig('confusion_matrix_linear_svm.png', dpi=300)
 plt.show()
 
-# Classification report
 print(classification_report(y_test, y_pred))
 
-# ---------------------------
 # Feature importance
-# ---------------------------
 coef = svm_multi.coef_
 importance = np.max(np.abs(coef), axis=0)
 
@@ -102,9 +90,8 @@ plt.title("Top 10 Genes (Multiclass SVM)")
 plt.savefig('top_10_genes_linear_sfm.png', dpi=300)
 plt.show()
 
-# ---------------------------
 # Pathway enrichment (MSI-H)
-# ---------------------------
+
 top_msi = feature_importance[
     feature_importance["higher_in"] == "MSI-H"
 ].head(50)["gene"].tolist()
@@ -118,10 +105,7 @@ enr = gp.enrichr(
 
 print(enr.results.head(10))
 
-
-# ---------------------------
-# 3. BINARY SVM
-# ---------------------------
+# Binary SVM
 print("\n=== BINARY SVM ===")
 
 y_bin = np.where(y_all == "MSI-H", "MSI-H", "Non-MSI-H")
@@ -157,9 +141,7 @@ plt.show()
 
 print(classification_report(y_test, y_pred))
 
-# ---------------------------
 # Feature importance
-# ---------------------------
 coef = svm_bin.coef_[0]
 importance = np.abs(coef)
 
@@ -188,9 +170,7 @@ plt.title("Top 10 Genes (Binary SVM)")
 plt.savefig('top_10_genes_binary_svm.png', dpi=300)
 plt.show()
 
-# ---------------------------
 # Pathway enrichment
-# ---------------------------
 top_msi = feature_importance_bin[
     feature_importance_bin["higher_in"] == "MSI-H"
 ].head(50)["gene"].tolist()
