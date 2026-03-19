@@ -8,7 +8,7 @@ from imblearn.under_sampling import RandomUnderSampler
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-############## Configure colors for fun ###################
+############## Configure colors##################
 metric_color = ['#7fb3d5', '#f7dc6f', '#27ae60'] # Precision, Recall, F1-score
 ###########################################################
 
@@ -42,6 +42,7 @@ y_train_1 = y_all[train_mask_1].map({'MSI-H': 1, 'MSS': 0})
 X_test_1 = X_all[y_all == 'MSI-L']
 y_test_1 = pd.Series(0, index=X_test_1.index) # label MSI-L as 0 (Non-MSI-H)
 
+#set seed
 rus = RandomUnderSampler(random_state=42)
 X_res_1, y_res_1 = rus.fit_resample(X_train_1, y_train_1)
 
@@ -78,7 +79,7 @@ rs_2 = RandomizedSearchCV(RandomForestClassifier(random_state=42), param_dist, n
 rs_2.fit(X_res_2, y_res_2)
 y_pred_2 = rs_2.predict(X_test_2)
 
-###################### Feature importance + direction: Analysis 2 ######################
+###################### Feature importance Analysis 2 ######################
 # Get the best tuned random forest model
 best_model_2 = rs_2.best_estimator_
 
@@ -88,7 +89,7 @@ feature_importance_2 = pd.DataFrame({
     'importance': best_model_2.feature_importances_
 }).sort_values(by='importance', ascending=False)
 
-# ----- Direction of expression (based on original training split, before undersampling) -----
+# Direction of expression (based on original training split, before undersampling) 
 # y_2: 0 = Non-MSI-H, 1 = MSI-H
 X_train_2_df = X_train_2.copy()
 X_train_2_df['group'] = y_train_2.values
@@ -173,7 +174,7 @@ feature_importance_3 = pd.DataFrame({
     'importance': best_model_3.feature_importances_
 }).sort_values(by='importance', ascending=False)
 
-# ----- Direction of expression (based on original training split) -----
+# Direction of expression (based on original training split) 
 X_train_3_df = X_train_3.copy()
 X_train_3_df["group"] = y_train_3.values
 
