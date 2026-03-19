@@ -175,7 +175,62 @@ enrichment_results <- enrichment_results %>% arrange(PValue)
 # Show top 10 enriched pathways
 head(enrichment_results, 10)
 ```
+# Images Multiclass
+```{r}
+library(ggplot2)
+library(reshape2)
 
+# Extract confusion matrix table
+cm_table <- as.data.frame(cm_multi$table)
+colnames(cm_table) <- c("Prediction", "Reference", "Freq")
+
+# Plot heatmap
+ggplot(cm_table, aes(x = Reference, y = Prediction, fill = Freq)) +
+  geom_tile(color = "white") +
+  geom_text(aes(label = Freq), size = 5) +
+  scale_fill_gradient(low = "lightblue", high = "steelblue") +
+  labs(title = "Confusion Matrix Heatmap",
+       x = "Actual Class",
+       y = "Predicted Class") +
+  theme_minimal()
+
+# Extract metrics
+metrics <- as.data.frame(cm_multi$byClass)
+
+# Add class names
+metrics$Class <- rownames(metrics)
+
+# Rename for clarity
+metrics$Precision <- metrics$`Pos Pred Value`
+metrics$Recall <- metrics$Sensitivity
+
+# Compute F1 score
+metrics$F1 <- 2 * (metrics$Precision * metrics$Recall) / 
+              (metrics$Precision + metrics$Recall)
+
+# Keep only relevant columns
+metrics_plot <- metrics[, c("Class", "Precision", "Recall", "F1")]
+
+library(tidyr)
+
+metrics_long <- pivot_longer(metrics_plot,
+                             cols = c("Precision", "Recall", "F1"),
+                             names_to = "Metric",
+                             values_to = "Value")
+
+ggplot(metrics_long, aes(x = Class, y = Value, fill = Metric)) +
+  geom_col(position = "dodge") +
+  scale_fill_manual(values = c(
+    "Precision" = "steelblue",
+    "Recall" = "orange",
+    "F1" = "forestgreen"
+  )) +
+  ylim(0,1) +
+  labs(title = "Model Performance by Class",
+       y = "Score",
+       x = "Class") +
+  theme_minimal()
+```{r}
 
 ## Binary SVM
 
@@ -296,5 +351,72 @@ enrichment_results <- enrichment_results %>% arrange(PValue)
 
 # Show top 10 enriched pathways
 head(enrichment_results, 10)
+```
+
+# Images binary
+```{r}
+library(ggplot2)
+
+# Convert confusion matrix to dataframe
+cm_table_bin <- as.data.frame(cm_bin$table)
+colnames(cm_table_bin) <- c("Prediction", "Reference", "Freq")
+
+# Heatmap
+ggplot(cm_table_bin, aes(x = Reference, y = Prediction, fill = Freq)) +
+  geom_tile(color = "white") +
+  geom_text(aes(label = Freq), size = 6) +
+  scale_fill_gradient(low = "lightblue", high = "steelblue") +
+  labs(title = "Confusion Matrix Heatmap (Binary SVM)",
+       x = "Actual Class",
+       y = "Predicted Class") +
+  theme_minimal()
+
+cm_table_bin$Percent <- ave(cm_table_bin$Freq, cm_table_bin$Reference,
+                            FUN = function(x) x / sum(x))
+
+ggplot(cm_table_bin, aes(x = Reference, y = Prediction, fill = Percent)) +
+  geom_tile(color = "white") +
+  geom_text(aes(label = sprintf("%.2f", Percent)), size = 5) +
+  scale_fill_gradient(low = "white", high = "red") +
+  labs(title = "Normalized Confusion Matrix (Binary SVM)",
+       x = "Actual Class",
+       y = "Predicted Class") +
+  theme_minimal()
+
+# Extract class-wise metrics
+metrics_bin <- as.data.frame(cm_bin$byClass)
+
+# For binary, caret returns a named vector → convert properly
+metrics_bin <- data.frame(
+  Class = c("MSI-H", "Non-MSI-H"),
+  Precision = c(cm_bin$byClass["Pos Pred Value"],
+                cm_bin$byClass["Neg Pred Value"]),
+  Recall = c(cm_bin$byClass["Sensitivity"],
+             cm_bin$byClass["Specificity"])
+)
+
+# Compute F1 score
+metrics_bin$F1 <- 2 * (metrics_bin$Precision * metrics_bin$Recall) /
+                  (metrics_bin$Precision + metrics_bin$Recall)
+
+library(tidyr)
+
+metrics_long_bin <- pivot_longer(metrics_bin,
+                                cols = c("Precision", "Recall", "F1"),
+                                names_to = "Metric",
+                                values_to = "Value")
+
+ggplot(metrics_long_bin, aes(x = Class, y = Value, fill = Metric)) +
+  geom_col(position = "dodge") +
+  scale_fill_manual(values = c(
+    "Precision" = "steelblue",
+    "Recall" = "orange",
+    "F1" = "forestgreen"
+  )) +
+  ylim(0,1) +
+  labs(title = "Binary SVM Performance",
+       x = "Class",
+       y = "Score") +
+  theme_minimal()
 ```
 

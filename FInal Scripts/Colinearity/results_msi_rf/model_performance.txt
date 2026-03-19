@@ -1,0 +1,11 @@
+Accuracy: 0.9080
+
+Classification report:
+              precision    recall  f1-score   support
+
+   Non-MSI-H       0.93      0.96      0.95        73
+       MSI-H       0.75      0.64      0.69        14
+
+    accuracy                           0.91        87
+   macro avg       0.84      0.80      0.82        87
+weighted avg       0.90      0.91      0.91        87
