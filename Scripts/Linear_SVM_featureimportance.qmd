@@ -42,16 +42,23 @@ table(y_all)
 # ==========================================
 # Multiclass Linear SVM → Top MSI-H Genes → Pathway Enrichment
 # ==========================================
-
+library(caret)
+library(dplyr)
+library(ggplot2)
+library(msigdbr)
 
 set.seed(42)
 
 # ---------------------------
 # 1. Prepare data
 # ---------------------------
-# X_all: numeric matrix/data frame (samples × genes)
-# y_all: factor/vector with "MSI-H", "MSI-L", "MSS", "Indeterminate"
-all_levels <- c("MSI-H","MSI-L","MSS","Indeterminate")
+# Remove "Indeterminate" samples
+keep_idx <- y_all != "Indeterminate"
+X_all <- X_all[keep_idx, ]
+y_all <- y_all[keep_idx]
+
+# Define levels WITHOUT Indeterminate
+all_levels <- c("MSI-H","MSI-L","MSS")
 y_multi <- factor(y_all, levels = all_levels)
 X_df <- as.data.frame(X_all)
 
@@ -127,7 +134,7 @@ ggplot(top10, aes(x=reorder(gene, importance), y=importance, fill=higher_in)) +
   scale_fill_manual(values=c("MSI-H"="forestgreen",
                              "MSI-L"="orange",
                              "MSS"="steelblue",
-                             "Indeterminate"="gray")) +
+                             ) +
   labs(title="Top 10 Genes — Multiclass Linear SVM", x="Gene", y="Importance") +
   theme_minimal()
 
