@@ -229,7 +229,7 @@ top10_pathway_plot_bin = pathway_results_bin.sort_values('Importance', ascending
 # ---------------------------
 # Plot Pathway Feature Importances (Binary Linear SVM)
 # ---------------------------
-pathway_results_bin = enr_bin.results.head(10).copy()
+pathway_results_bin = enr_bin.results.head(15).copy()
 
 # Use -log10(Adjusted P-value) as the importance proxy
 pathway_results_bin['Importance'] = -np.log10(pathway_results_bin['Adjusted P-value'])
@@ -239,7 +239,37 @@ plt.figure(figsize=(10, 6))
 plt.barh(top10_pathway_plot_bin['Term'], top10_pathway_plot_bin['Importance'], color='steelblue')
 plt.xlabel('Feature importance')
 plt.ylabel('Pathway')
-plt.title('Top 10 Important Pathways - Linear SVM MSI-H')
+plt.title('Top 15 Important Pathways - Linear SVM MSI-H')
 plt.tight_layout()
-plt.savefig('top_10_pathway_importance_binary_svm.png', dpi=300)
+plt.savefig('top_15_pathway_importance_binary_svm.png', dpi=300)
+plt.show()
+
+
+import matplotlib.pyplot as plt
+import numpy as np
+
+# ---------------------------
+# Plot Pathway Feature Importances (Binary Linear SVM)
+# ---------------------------
+
+# 1. Extract the top 15 enrichment results
+pathway_results_bin = enr_bin.results.head(15).copy()
+
+# 2. Calculate Importance using -log10 of the Adjusted P-value
+# This transforms small p-values into large "importance" scores
+pathway_results_bin['Importance'] = -np.log10(pathway_results_bin['Adjusted P-value'])
+
+# 3. Sort values ascending so the highest importance appears at the top of the horizontal bar chart
+top15_pathway_plot = pathway_results_bin.sort_values('Importance', ascending=True)
+
+# 4. Visualization
+plt.figure(figsize=(12, 8)) # Increased height slightly for 15 rows
+plt.barh(top15_pathway_plot['Term'], top15_pathway_plot['Importance'], color='steelblue')
+
+plt.xlabel('-log10(Adjusted P-value)')
+plt.ylabel('Pathway')
+plt.title('Top 15 Important Pathways - Linear SVM MSI-H')
+
+plt.tight_layout()
+plt.savefig('top_15_pathway_importance_binary_svm.png', dpi=300)
 plt.show()
