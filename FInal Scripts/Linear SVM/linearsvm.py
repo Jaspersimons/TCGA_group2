@@ -183,3 +183,63 @@ enr_bin = gp.enrichr(
 )
 
 print(enr_bin.results.head(10))
+
+
+
+
+
+#plot linear svm 
+top10_multi = feature_importance.head(10)
+top10_plot_multi = top10_multi.sort_values('importance')
+
+plt.figure(figsize=(10, 6))
+plt.barh(top10_plot_multi['gene'], top10_plot_multi['importance'], color='steelblue')
+plt.xlabel('Feature importance (Absolute Coefficient)')
+plt.ylabel('Gene')
+plt.title('Top 10 Important Genes - Multiclass SVM')
+plt.tight_layout()
+plt.savefig('top_10_genes_multiclass_linear_svm.png', dpi=300)
+plt.show()
+
+## plot binary svm 
+top10_bin = feature_importance_bin.head(10)
+top10_plot_bin = top10_bin.sort_values('importance')
+
+plt.figure(figsize=(10, 6))
+plt.barh(top10_plot_bin['gene'], top10_plot_bin['importance'], color='forestgreen')
+plt.xlabel('Feature importance (Absolute Coefficient)')
+plt.ylabel('Gene')
+plt.title('Top 10 Important Genes - Binary SVM')
+plt.tight_layout()
+plt.savefig('top_10_genes_binary_linear_svm.png', dpi=300)
+plt.show()
+
+# ---------------------------
+# Plot Pathway Feature Importances (Binary Linear SVM)
+# ---------------------------
+# Using the enrichment results from the binary SVM model
+pathway_results_bin = enr_bin.results.head(10).copy()
+
+# Convert Adjusted P-value to -log10 for visualization (acts as the importance metric here)
+pathway_results_bin['Importance'] = -np.log10(pathway_results_bin['Adjusted P-value'])
+
+# Sort so the most important pathway is at the top of the bar chart
+top10_pathway_plot_bin = pathway_results_bin.sort_values('Importance', ascending=True)
+
+# ---------------------------
+# Plot Pathway Feature Importances (Binary Linear SVM)
+# ---------------------------
+pathway_results_bin = enr_bin.results.head(10).copy()
+
+# Use -log10(Adjusted P-value) as the importance proxy
+pathway_results_bin['Importance'] = -np.log10(pathway_results_bin['Adjusted P-value'])
+top10_pathway_plot_bin = pathway_results_bin.sort_values('Importance', ascending=True)
+
+plt.figure(figsize=(10, 6))
+plt.barh(top10_pathway_plot_bin['Term'], top10_pathway_plot_bin['Importance'], color='steelblue')
+plt.xlabel('Feature importance')
+plt.ylabel('Pathway')
+plt.title('Top 10 Important Pathways - Linear SVM MSI-H')
+plt.tight_layout()
+plt.savefig('top_10_pathway_importance_binary_svm.png', dpi=300)
+plt.show()
